@@ -2,8 +2,17 @@ class Game {
     constructor() {
         this.canvas = document.getElementById('gameCanvas');
         this.ctx = this.canvas.getContext('2d');
-        this.canvas.width = 800;
-        this.canvas.height = 400;
+        
+        // 基准分辨率
+        this.baseWidth = 800;
+        this.baseHeight = 400;
+        
+        // 设置画布尺寸
+        this.resizeCanvas();
+        window.addEventListener('resize', () => this.resizeCanvas());
+        
+        // 缩放比例
+        this.scale = 1;
         
         // 加载图片
         this.playerImg = new Image();
@@ -72,12 +81,6 @@ class Game {
         
         // 添加虚拟按键状态
         this.virtualButtons = {
-            jump: { 
-                x: 80, // 圆心x坐标
-                y: this.canvas.height - 80, // 圆心y坐标
-                radius: 40, // 圆形半径
-                text: '跳跃' 
-            },
             pause: { 
                 x: this.canvas.width - 160, 
                 y: this.canvas.height - 80,
@@ -256,21 +259,27 @@ class Game {
         this.canvas.addEventListener('touchstart', (e) => {
             e.preventDefault();
             const touch = e.touches[0];
-            const rect = this.canvas.getBoundingClientRect();
-            const x = (touch.clientX - rect.left) * (this.canvas.width / rect.width);
-            const y = (touch.clientY - rect.top) * (this.canvas.height / rect.height);
+            const pos = this.convertTouchToCanvas(touch.clientX, touch.clientY);
             
-            // 检查是否触摸到虚拟按键
-            if (this.checkButtonTouch(x, y, this.virtualButtons.jump)) {
-                if (!this.player.jumping && !this.isPaused && !this.isGameOver) {
-                    this.player.jumping = true;
-                    this.player.velocity = this.jumpForce;
-                    this.playJumpSound();
+            // 检查是否触摸到任何虚拟按键
+            let buttonTouched = false;
+            for (const [name, button] of Object.entries(this.virtualButtons)) {
+                if (this.checkButtonTouch(pos.x, pos.y, button)) {
+                    buttonTouched = true;
+                    if (name === 'pause') {
+                        this.togglePause();
+                    } else if (name === 'restart') {
+                        this.reset();
+                    }
+                    break;
                 }
-            } else if (this.checkButtonTouch(x, y, this.virtualButtons.pause)) {
-                this.togglePause();
-            } else if (this.checkButtonTouch(x, y, this.virtualButtons.restart)) {
-                this.reset();
+            }
+            
+            // 如果没有触摸到任何按钮，且游戏状态正常，则触发跳跃
+            if (!buttonTouched && !this.player.jumping && !this.isPaused && !this.isGameOver) {
+                this.player.jumping = true;
+                this.player.velocity = this.jumpForce;
+                this.playJumpSound();
             }
         });
         
@@ -648,6 +657,62 @@ class Game {
         } catch (error) {
             console.error(`使用Audio元素播放${soundName}音效失败:`, error);
         }
+    }
+    
+    // 响应式调整画布尺寸
+    resizeCanvas() {
+        const container = this.canvas.parentElement;
+        const containerWidth = container.clientWidth;
+        const containerHeight = container.clientHeight;
+        
+        // 计算最佳缩放比例
+        const scaleX = containerWidth / this.baseWidth;
+        const scaleY = containerHeight / this.baseHeight;
+        this.scale = Math.min(scaleX, scaleY);
+        
+        // 设置画布大小
+        this.canvas.width = this.baseWidth;
+        this.canvas.height = this.baseHeight;
+        
+        // 设置画布样式尺寸（实际显示大小）
+        this.canvas.style.width = `${this.baseWidth * this.scale}px`;
+        this.canvas.style.height = `${this.baseHeight * this.scale}px`;
+        
+        // 更新虚拟按钮位置
+        this.updateButtonPositions();
+        
+        // 重新定位画布
+        const leftOffset = (containerWidth - this.baseWidth * this.scale) / 2;
+        const topOffset = (containerHeight - this.baseHeight * this.scale) / 2;
+        this.canvas.style.left = `${leftOffset}px`;
+        this.canvas.style.top = `${topOffset}px`;
+    }
+    
+    // 更新虚拟按钮位置
+    updateButtonPositions() {
+        this.virtualButtons = {
+            pause: { 
+                x: this.canvas.width - 160, 
+                y: this.canvas.height - 80,
+                radius: 40,
+                text: '暂停' 
+            },
+            restart: { 
+                x: this.canvas.width - 60,
+                y: this.canvas.height - 80,
+                radius: 40,
+                text: '重启' 
+            }
+        };
+    }
+    
+    // 转换触摸坐标到画布坐标
+    convertTouchToCanvas(clientX, clientY) {
+        const rect = this.canvas.getBoundingClientRect();
+        return {
+            x: (clientX - rect.left) * (this.canvas.width / rect.width),
+            y: (clientY - rect.top) * (this.canvas.height / rect.height)
+        };
     }
 }
 
