@@ -12,6 +12,19 @@ class Game {
         this.obstacleImg = new Image();
         this.obstacleImg.src = 'obstacle.png';
         
+        // 图片加载错误处理
+        this.playerImg.onerror = () => {
+            console.error("玩家图片加载失败");
+            this.playerImg = null;
+            this.imageLoaded();
+        };
+        
+        this.obstacleImg.onerror = () => {
+            console.error("障碍物图片加载失败");
+            this.obstacleImg = null;
+            this.imageLoaded();
+        };
+        
         // 音频状态
         this.audioEnabled = false;
         this.audioContext = null;
@@ -282,7 +295,7 @@ class Game {
         // 如果游戏结束，使用保存的状态绘制
         if (this.isGameOver && this.gameOverState) {
             // 绘制障碍物
-            if (this.imagesLoaded === this.totalImages) {
+            if (this.obstacleImg && this.imagesLoaded === this.totalImages) {
                 this.gameOverState.obstacles.forEach(obstacle => {
                     this.ctx.drawImage(this.obstacleImg, obstacle.x, obstacle.y, obstacle.width, obstacle.height);
                 });
@@ -294,19 +307,18 @@ class Game {
             }
             
             // 绘制玩家
-            if (this.imagesLoaded === this.totalImages) {
+            if (this.playerImg && this.imagesLoaded === this.totalImages) {
                 this.ctx.drawImage(this.playerImg, this.gameOverState.player.x, this.gameOverState.player.y, 
                                   this.gameOverState.player.width, this.gameOverState.player.height);
             } else {
                 this.ctx.fillStyle = '#4CAF50';
-                this.gameOverState.obstacles.forEach(obstacle => {
-                    this.ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
-                });
+                this.ctx.fillRect(this.gameOverState.player.x, this.gameOverState.player.y, 
+                                 this.gameOverState.player.width, this.gameOverState.player.height);
             }
         } else {
             // 正常游戏状态下的绘制
             // 绘制障碍物
-            if (this.imagesLoaded === this.totalImages) {
+            if (this.obstacleImg && this.imagesLoaded === this.totalImages) {
                 this.obstacles.forEach(obstacle => {
                     this.ctx.drawImage(this.obstacleImg, obstacle.x, obstacle.y, obstacle.width, obstacle.height);
                 });
@@ -318,7 +330,7 @@ class Game {
             }
             
             // 绘制玩家
-            if (this.imagesLoaded === this.totalImages) {
+            if (this.playerImg && this.imagesLoaded === this.totalImages) {
                 this.ctx.drawImage(this.playerImg, this.player.x, this.player.y, this.player.width, this.player.height);
             } else {
                 this.ctx.fillStyle = '#4CAF50';
