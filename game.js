@@ -70,6 +70,35 @@ class Game {
         // 获取视频背景元素
         this.bgVideo = document.getElementById('bgVideo');
         
+        // 添加虚拟按键状态
+        this.virtualButtons = {
+            jump: { 
+                x: 80, // 圆心x坐标
+                y: this.canvas.height - 80, // 圆心y坐标
+                radius: 40, // 圆形半径
+                text: '跳跃' 
+            },
+            pause: { 
+                x: this.canvas.width - 160, 
+                y: this.canvas.height - 80,
+                radius: 40,
+                text: '暂停' 
+            },
+            restart: { 
+                x: this.canvas.width - 60,
+                y: this.canvas.height - 80,
+                radius: 40,
+                text: '重启' 
+            }
+        };
+        
+        // 触摸状态
+        this.touchActive = false;
+        
+        // 响应式缩放
+        this.resizeGame();
+        window.addEventListener('resize', () => this.resizeGame());
+        
         this.setupEventListeners();
         
         // 设置视频循环时间为20秒
@@ -206,24 +235,48 @@ class Game {
     }
     
     setupEventListeners() {
+        // 键盘事件
         document.addEventListener('keydown', (e) => {
             if (e.code === 'Space' && !this.player.jumping && !this.isPaused && !this.isGameOver) {
                 this.player.jumping = true;
                 this.player.velocity = this.jumpForce;
-                
-                // 播放跳跃音效
                 this.playJumpSound();
             }
             
-            // 暂停快捷键
             if (e.code === 'KeyS') {
                 this.togglePause();
             }
             
-            // 重新开始快捷键
             if (e.code === 'KeyR') {
                 this.reset();
             }
+        });
+        
+        // 触摸事件
+        this.canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const rect = this.canvas.getBoundingClientRect();
+            const x = (touch.clientX - rect.left) * (this.canvas.width / rect.width);
+            const y = (touch.clientY - rect.top) * (this.canvas.height / rect.height);
+            
+            // 检查是否触摸到虚拟按键
+            if (this.checkButtonTouch(x, y, this.virtualButtons.jump)) {
+                if (!this.player.jumping && !this.isPaused && !this.isGameOver) {
+                    this.player.jumping = true;
+                    this.player.velocity = this.jumpForce;
+                    this.playJumpSound();
+                }
+            } else if (this.checkButtonTouch(x, y, this.virtualButtons.pause)) {
+                this.togglePause();
+            } else if (this.checkButtonTouch(x, y, this.virtualButtons.restart)) {
+                this.reset();
+            }
+        });
+        
+        this.canvas.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            this.touchActive = false;
         });
         
         document.getElementById('pauseBtn').addEventListener('click', () => {
@@ -233,6 +286,25 @@ class Game {
         document.getElementById('restartBtn').addEventListener('click', () => {
             this.reset();
         });
+    }
+    
+    // 检查触摸点是否在按钮范围内
+    checkButtonTouch(x, y, button) {
+        // 使用圆形碰撞检测
+        const dx = x - button.x;
+        const dy = y - button.y;
+        return Math.sqrt(dx * dx + dy * dy) <= button.radius;
+    }
+    
+    // 响应式缩放
+    resizeGame() {
+        const container = this.canvas.parentElement;
+        const containerWidth = container.clientWidth;
+        const containerHeight = container.clientHeight;
+        const scale = Math.min(containerWidth / 800, containerHeight / 400);
+        
+        this.canvas.style.width = (800 * scale) + 'px';
+        this.canvas.style.height = (400 * scale) + 'px';
     }
     
     togglePause() {
@@ -412,6 +484,32 @@ class Game {
             this.ctx.font = '20px Arial';
             this.ctx.fillText('按R键重新开始', this.canvas.width / 2, this.canvas.height / 2 + 40);
         }
+        
+        // 绘制虚拟按键
+        this.drawVirtualButtons();
+    }
+    
+    // 绘制虚拟按键
+    drawVirtualButtons() {
+        Object.values(this.virtualButtons).forEach(button => {
+            // 绘制圆形按钮背景
+            this.ctx.beginPath();
+            this.ctx.arc(button.x, button.y, button.radius, 0, Math.PI * 2);
+            this.ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+            this.ctx.fill();
+            
+            // 绘制圆形按钮边框
+            this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+            this.ctx.lineWidth = 2;
+            this.ctx.stroke();
+            
+            // 绘制按钮文字
+            this.ctx.fillStyle = 'white';
+            this.ctx.font = '20px Arial';
+            this.ctx.textAlign = 'center';
+            this.ctx.textBaseline = 'middle';
+            this.ctx.fillText(button.text, button.x, button.y);
+        });
     }
     
     gameOver() {
