@@ -34,20 +34,18 @@ class Game {
             this.imageLoaded();
         };
         
-        // 音频状态
+        // 音频系统
         this.audioEnabled = false;
-        this.audioContext = null;
-        this.audioBuffers = {};
+        this.jumpSound = new Audio();
+        this.collisionSound = new Audio();
         
-        // 音效文件路径
-        this.soundFiles = {
-            jump: './jump.mp3',
-            collision: './collision.mp3'
-        };
+        // 设置音频源
+        this.jumpSound.src = 'jump.mp3';
+        this.collisionSound.src = 'collision.mp3';
         
-        // 音效加载状态
-        this.soundsLoaded = 0;
-        this.totalSounds = 2;
+        // 预加载音效
+        this.jumpSound.preload = 'auto';
+        this.collisionSound.preload = 'auto';
         
         // 图片加载状态
         this.imagesLoaded = 0;
@@ -74,26 +72,7 @@ class Game {
         this.lastObstacleTime = 0;
         this.isPaused = false;
         this.isGameOver = false;
-        this.gameStarted = false;
-        
-        // 获取视频背景元素
-        this.bgVideo = document.getElementById('bgVideo');
-        
-        // 添加虚拟按键状态
-        this.virtualButtons = {
-            pause: { 
-                x: this.canvas.width - 160, 
-                y: this.canvas.height - 80,
-                radius: 40,
-                text: '暂停' 
-            },
-            restart: { 
-                x: this.canvas.width - 60,
-                y: this.canvas.height - 80,
-                radius: 40,
-                text: '重启' 
-            }
-        };
+        this.gameStarted = true;
         
         // 触摸状态
         this.touchActive = false;
@@ -104,117 +83,25 @@ class Game {
         
         this.setupEventListeners();
         
-        // 设置视频循环时间为20秒
-        this.bgVideo.addEventListener('loadedmetadata', () => {
-            // 设置视频循环时间为20秒
-            this.bgVideo.addEventListener('timeupdate', () => {
-                if (this.bgVideo.currentTime >= 20) {
-                    this.bgVideo.currentTime = 0;
-                }
-            });
-        });
-        
-        // 确保视频背景加载完成
-        if (this.bgVideo.readyState >= 3) {
-            this.startGame();
-        } else {
-            this.bgVideo.addEventListener('canplay', () => {
-                this.startGame();
-            });
-        }
-        
         // 添加音频解锁逻辑
         this.unlockAudio();
         
-        // 预加载音效
-        this.preloadSounds();
-    }
-    
-    // 预加载音效
-    preloadSounds() {
-        console.log("开始预加载音效");
-        
-        // 使用fetch加载音效文件
-        Object.entries(this.soundFiles).forEach(([name, url]) => {
-            fetch(url)
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
-                    }
-                    return response.arrayBuffer();
-                })
-                .then(arrayBuffer => {
-                    console.log(`音效 ${name} 加载成功`);
-                    this.audioBuffers[name] = arrayBuffer;
-                    this.soundsLoaded++;
-                    console.log(`音效加载进度: ${this.soundsLoaded}/${this.totalSounds}`);
-                })
-                .catch(error => {
-                    console.error(`音效 ${name} 加载失败:`, error);
-                    this.soundsLoaded++; // 即使加载失败也计数，避免卡住
-                });
-        });
+        // 直接开始游戏
+        this.startGame();
     }
     
     // 解锁音频的方法
     unlockAudio() {
-        console.log("尝试解锁音频");
-        
-        // 创建一个一次性的事件监听器，用于解锁音频
         const unlockAudio = () => {
-            console.log("用户交互，尝试解锁音频");
-            
-            // 尝试使用Web Audio API
-            try {
-                // 创建音频上下文
-                const AudioContext = window.AudioContext || window.webkitAudioContext;
-                if (AudioContext) {
-                    this.audioContext = new AudioContext();
-                    console.log("Web Audio API 初始化成功");
-                    
-                    // 尝试播放一个静音的音频
-                    const oscillator = this.audioContext.createOscillator();
-                    const gainNode = this.audioContext.createGain();
-                    gainNode.gain.value = 0; // 静音
-                    
-                    oscillator.connect(gainNode);
-                    gainNode.connect(this.audioContext.destination);
-                    
-                    oscillator.start(0);
-                    oscillator.stop(0.1);
-                    
-                    console.log("Web Audio API 测试成功");
-                    this.audioEnabled = true;
-                }
-            } catch (e) {
-                console.error("Web Audio API 初始化失败:", e);
-            }
-            
-            // 如果Web Audio API不可用，尝试使用Audio元素
-            if (!this.audioEnabled) {
-                try {
-                    // 创建一个短暂的音频并播放
-                    const audio = new Audio();
-                    audio.src = this.soundFiles.jump;
-                    
-                    // 设置音量为0，这样用户不会听到声音
-                    audio.volume = 0;
-                    
-                    // 尝试播放
-                    const playPromise = audio.play();
-                    
-                    if (playPromise !== undefined) {
-                        playPromise.then(() => {
-                            console.log("Audio元素测试成功");
-                            this.audioEnabled = true;
-                        }).catch(error => {
-                            console.error("Audio元素测试失败:", error);
-                        });
-                    }
-                } catch (e) {
-                    console.error("Audio元素测试出错:", e);
-                }
-            }
+            // 尝试播放一个静音的音频
+            const audio = new Audio();
+            audio.volume = 0;
+            audio.play().then(() => {
+                this.audioEnabled = true;
+                console.log("音频已解锁");
+            }).catch(error => {
+                console.error("音频解锁失败:", error);
+            });
             
             // 移除事件监听器
             document.removeEventListener('click', unlockAudio);
@@ -245,14 +132,6 @@ class Game {
                 this.player.velocity = this.jumpForce;
                 this.playJumpSound();
             }
-            
-            if (e.code === 'KeyS') {
-                this.togglePause();
-            }
-            
-            if (e.code === 'KeyR') {
-                this.reset();
-            }
         });
         
         // 触摸事件
@@ -261,22 +140,8 @@ class Game {
             const touch = e.touches[0];
             const pos = this.convertTouchToCanvas(touch.clientX, touch.clientY);
             
-            // 检查是否触摸到任何虚拟按键
-            let buttonTouched = false;
-            for (const [name, button] of Object.entries(this.virtualButtons)) {
-                if (this.checkButtonTouch(pos.x, pos.y, button)) {
-                    buttonTouched = true;
-                    if (name === 'pause') {
-                        this.togglePause();
-                    } else if (name === 'restart') {
-                        this.reset();
-                    }
-                    break;
-                }
-            }
-            
-            // 如果没有触摸到任何按钮，且游戏状态正常，则触发跳跃
-            if (!buttonTouched && !this.player.jumping && !this.isPaused && !this.isGameOver) {
+            // 如果游戏状态正常，则触发跳跃
+            if (!this.player.jumping && !this.isPaused && !this.isGameOver) {
                 this.player.jumping = true;
                 this.player.velocity = this.jumpForce;
                 this.playJumpSound();
@@ -288,21 +153,14 @@ class Game {
             this.touchActive = false;
         });
         
-        document.getElementById('pauseBtn').addEventListener('click', () => {
+        // 虚拟按钮事件
+        document.getElementById('pauseButton').addEventListener('click', () => {
             this.togglePause();
         });
         
-        document.getElementById('restartBtn').addEventListener('click', () => {
+        document.getElementById('restartButton').addEventListener('click', () => {
             this.reset();
         });
-    }
-    
-    // 检查触摸点是否在按钮范围内
-    checkButtonTouch(x, y, button) {
-        // 使用圆形碰撞检测
-        const dx = x - button.x;
-        const dy = y - button.y;
-        return Math.sqrt(dx * dx + dy * dy) <= button.radius;
     }
     
     // 响应式缩放
@@ -316,24 +174,6 @@ class Game {
         this.canvas.style.height = (400 * scale) + 'px';
     }
     
-    togglePause() {
-        if (!this.gameStarted) {
-            this.gameStarted = true;
-            this.bgVideo.play();
-            return;
-        }
-        
-        this.isPaused = !this.isPaused;
-        document.getElementById('pauseBtn').textContent = this.isPaused ? '继续(S)' : '暂停(S)';
-        
-        // 暂停/继续视频背景
-        if (this.isPaused) {
-            this.bgVideo.pause();
-        } else {
-            this.bgVideo.play();
-        }
-    }
-    
     createObstacle() {
         const height = 60 + Math.random() * 60;
         this.obstacles.push({
@@ -345,9 +185,8 @@ class Game {
     }
     
     update() {
-        if (this.isPaused || !this.gameStarted) return;
+        if (this.isPaused) return;
         
-        // 如果游戏已结束，不再更新任何内容
         if (this.isGameOver) return;
         
         // 更新玩家位置
@@ -435,9 +274,18 @@ class Game {
                                   this.gameOverState.player.width, this.gameOverState.player.height);
             } else {
                 this.ctx.fillStyle = '#4CAF50';
-                this.ctx.fillRect(this.gameOverState.player.x, this.gameOverState.player.y, 
-                                 this.gameOverState.player.width, this.gameOverState.player.height);
+                this.gameOverState.obstacles.forEach(obstacle => {
+                    this.ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+                });
             }
+            
+            // 显示游戏结束文字
+            this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+            this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+            this.ctx.fillStyle = '#333';
+            this.ctx.font = '30px Arial';
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText(`游戏结束！得分：${this.score}`, this.canvas.width / 2, this.canvas.height / 2);
         } else {
             // 正常游戏状态下的绘制
             // 绘制障碍物
@@ -459,75 +307,23 @@ class Game {
                 this.ctx.fillStyle = '#4CAF50';
                 this.ctx.fillRect(this.player.x, this.player.y, this.player.width, this.player.height);
             }
-        }
-        
-        // 如果游戏未开始，显示开始提示
-        if (!this.gameStarted) {
-            this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-            this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-            this.ctx.fillStyle = 'white';
-            this.ctx.font = '30px Arial';
-            this.ctx.textAlign = 'center';
-            this.ctx.fillText('按S键开始游戏', this.canvas.width / 2, this.canvas.height / 2);
-        }
-        
-        // 如果游戏暂停，显示暂停文字
-        if (this.isPaused) {
-            this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-            this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-            this.ctx.fillStyle = 'white';
-            this.ctx.font = '30px Arial';
-            this.ctx.textAlign = 'center';
-            this.ctx.fillText('游戏暂停', this.canvas.width / 2, this.canvas.height / 2);
-        }
-        
-        // 如果游戏结束，显示游戏结束文字
-        if (this.isGameOver) {
-            // 使用半透明背景，而不是完全不透明的黑色背景
-            this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-            this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-            this.ctx.fillStyle = 'white';
-            this.ctx.font = '30px Arial';
-            this.ctx.textAlign = 'center';
-            this.ctx.fillText(`游戏结束！得分：${this.score}`, this.canvas.width / 2, this.canvas.height / 2);
-            this.ctx.font = '20px Arial';
-            this.ctx.fillText('按R键重新开始', this.canvas.width / 2, this.canvas.height / 2 + 40);
-        }
-        
-        // 绘制虚拟按键
-        this.drawVirtualButtons();
-    }
-    
-    // 绘制虚拟按键
-    drawVirtualButtons() {
-        Object.values(this.virtualButtons).forEach(button => {
-            // 绘制圆形按钮背景
-            this.ctx.beginPath();
-            this.ctx.arc(button.x, button.y, button.radius, 0, Math.PI * 2);
-            this.ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-            this.ctx.fill();
             
-            // 绘制圆形按钮边框
-            this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
-            this.ctx.lineWidth = 2;
-            this.ctx.stroke();
-            
-            // 绘制按钮文字
-            this.ctx.fillStyle = 'white';
-            this.ctx.font = '20px Arial';
-            this.ctx.textAlign = 'center';
-            this.ctx.textBaseline = 'middle';
-            this.ctx.fillText(button.text, button.x, button.y);
-        });
+            // 如果游戏暂停，显示暂停文字
+            if (this.isPaused) {
+                this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+                this.ctx.fillStyle = '#333';
+                this.ctx.font = '30px Arial';
+                this.ctx.textAlign = 'center';
+                this.ctx.fillText('游戏暂停', this.canvas.width / 2, this.canvas.height / 2);
+            }
+        }
     }
     
     gameOver() {
         this.isGameOver = true;
-        // 游戏结束时暂停视频背景
-        this.bgVideo.pause();
         
         // 确保游戏结束时障碍物仍然可见
-        // 不重置障碍物数组，保留当前所有障碍物
         console.log("游戏结束，当前障碍物数量:", this.obstacles.length);
         
         // 记录游戏结束时的状态，用于绘制
@@ -550,11 +346,7 @@ class Game {
         this.isGameOver = false;
         this.gameStarted = true;
         document.getElementById('scoreValue').textContent = '0';
-        document.getElementById('pauseBtn').textContent = '暂停(S)';
-        
-        // 重置视频背景
-        this.bgVideo.currentTime = 0;
-        this.bgVideo.play();
+        document.getElementById('pauseButton').textContent = '⏸';
     }
     
     gameLoop() {
@@ -563,99 +355,41 @@ class Game {
         requestAnimationFrame(() => this.gameLoop());
     }
     
-    // 播放跳跃音效的方法
+    // 播放跳跃音效
     playJumpSound() {
-        if (!this.audioEnabled) {
-            console.log("音频未解锁，无法播放跳跃音效");
-            return;
-        }
+        if (!this.audioEnabled) return;
         
         try {
-            console.log("尝试播放跳跃音效");
+            const sound = new Audio('jump.mp3');
+            sound.volume = 1.0;
+            const playPromise = sound.play();
             
-            // 优先使用Web Audio API
-            if (this.audioContext && this.audioBuffers.jump) {
-                this.playSoundWithWebAudio('jump');
-            } else {
-                // 回退到Audio元素
-                this.playSoundWithAudioElement('jump');
+            if (playPromise !== undefined) {
+                playPromise.catch(error => {
+                    console.error("播放跳跃音效失败:", error);
+                });
             }
         } catch (error) {
             console.error("播放跳跃音效出错:", error);
         }
     }
     
-    // 播放碰撞音效的方法
+    // 播放碰撞音效
     playCollisionSound() {
-        if (!this.audioEnabled) {
-            console.log("音频未解锁，无法播放碰撞音效");
-            return;
-        }
+        if (!this.audioEnabled) return;
         
         try {
-            console.log("尝试播放碰撞音效");
-            
-            // 优先使用Web Audio API
-            if (this.audioContext && this.audioBuffers.collision) {
-                this.playSoundWithWebAudio('collision');
-            } else {
-                // 回退到Audio元素
-                this.playSoundWithAudioElement('collision');
-            }
-        } catch (error) {
-            console.error("播放碰撞音效出错:", error);
-        }
-    }
-    
-    // 使用Web Audio API播放音效
-    playSoundWithWebAudio(soundName) {
-        if (!this.audioContext || !this.audioBuffers[soundName]) {
-            console.error(`无法使用Web Audio API播放${soundName}音效`);
-            return;
-        }
-        
-        try {
-            // 解码音频数据
-            this.audioContext.decodeAudioData(this.audioBuffers[soundName], (buffer) => {
-                // 创建音频源
-                const source = this.audioContext.createBufferSource();
-                source.buffer = buffer;
-                
-                // 连接到输出
-                source.connect(this.audioContext.destination);
-                
-                // 播放
-                source.start(0);
-                console.log(`${soundName}音效播放成功(Web Audio API)`);
-            }, (error) => {
-                console.error(`解码${soundName}音效失败:`, error);
-            });
-        } catch (error) {
-            console.error(`使用Web Audio API播放${soundName}音效失败:`, error);
-        }
-    }
-    
-    // 使用Audio元素播放音效
-    playSoundWithAudioElement(soundName) {
-        try {
-            // 创建新的音效实例，避免重叠播放问题
-            const audio = new Audio(this.soundFiles[soundName]);
-            audio.volume = 1.0;
-            
-            // 播放音效
-            const playPromise = audio.play();
+            const sound = new Audio('collision.mp3');
+            sound.volume = 1.0;
+            const playPromise = sound.play();
             
             if (playPromise !== undefined) {
-                playPromise.then(() => {
-                    console.log(`${soundName}音效播放成功(Audio元素)`);
-                }).catch(error => {
-                    console.error(`播放${soundName}音效失败:`, error);
-                    // 如果播放失败，尝试解锁音频
-                    this.unlockAudio();
+                playPromise.catch(error => {
+                    console.error("播放碰撞音效失败:", error);
                 });
             }
         } catch (error) {
-            console.error(`使用Audio元素播放${soundName}音效失败:`, error);
+            console.error("播放碰撞音效出错:", error);
         }
     }
     
@@ -678,32 +412,11 @@ class Game {
         this.canvas.style.width = `${this.baseWidth * this.scale}px`;
         this.canvas.style.height = `${this.baseHeight * this.scale}px`;
         
-        // 更新虚拟按钮位置
-        this.updateButtonPositions();
-        
         // 重新定位画布
         const leftOffset = (containerWidth - this.baseWidth * this.scale) / 2;
         const topOffset = (containerHeight - this.baseHeight * this.scale) / 2;
         this.canvas.style.left = `${leftOffset}px`;
         this.canvas.style.top = `${topOffset}px`;
-    }
-    
-    // 更新虚拟按钮位置
-    updateButtonPositions() {
-        this.virtualButtons = {
-            pause: { 
-                x: this.canvas.width - 160, 
-                y: this.canvas.height - 80,
-                radius: 40,
-                text: '暂停' 
-            },
-            restart: { 
-                x: this.canvas.width - 60,
-                y: this.canvas.height - 80,
-                radius: 40,
-                text: '重启' 
-            }
-        };
     }
     
     // 转换触摸坐标到画布坐标
@@ -713,6 +426,11 @@ class Game {
             x: (clientX - rect.left) * (this.canvas.width / rect.width),
             y: (clientY - rect.top) * (this.canvas.height / rect.height)
         };
+    }
+    
+    togglePause() {
+        this.isPaused = !this.isPaused;
+        document.getElementById('pauseButton').textContent = this.isPaused ? '▶' : '⏸';
     }
 }
 
