@@ -1,2 +1,23 @@
-# Easy-Super-Marie
-Easy Super Marie game, play in web with keyboard, like space bar to jump.
+# 极简跳跃游戏
+
+一个简单而有趣的网页版跳跃游戏。
+
+## 游戏特点
+
+- 极简设计，清爽界面
+- 简单的操作方式：按空格键跳跃
+- 随着时间推移逐渐增加难度
+- 无限游戏模式，没有关卡限制
+
+## 如何开始
+
+1. 打开 index.html 文件
+2. 按空格键开始游戏
+3. 通过按空格键控制角色跳跃
+4. 每成功跳过一个障碍物获得1分
+
+## 技术栈
+
+- HTML5 Canvas
+- JavaScript
+- CSS3 
