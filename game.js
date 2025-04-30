@@ -28,33 +28,17 @@ class Game {
         // 音频状态
         this.audioEnabled = false;
         this.audioContext = null;
+        this.audioBuffers = {};
         
-        // 加载音效
-        this.jumpSound = new Audio();
-        this.collisionSound = new Audio();
-        
-        // 设置音效路径（使用相对路径）
-        this.jumpSound.src = './jump.mp3';
-        this.collisionSound.src = './collision.mp3';
+        // 音效文件路径
+        this.soundFiles = {
+            jump: './jump.mp3',
+            collision: './collision.mp3'
+        };
         
         // 音效加载状态
         this.soundsLoaded = 0;
         this.totalSounds = 2;
-        
-        // 预加载音效
-        this.jumpSound.addEventListener('canplaythrough', () => this.soundLoaded());
-        this.collisionSound.addEventListener('canplaythrough', () => this.soundLoaded());
-        
-        // 音效加载错误处理
-        this.jumpSound.addEventListener('error', (e) => {
-            console.error("跳跃音效加载失败:", e);
-            this.soundsLoaded++; // 即使加载失败也计数，避免卡住
-        });
-        
-        this.collisionSound.addEventListener('error', (e) => {
-            console.error("碰撞音效加载失败:", e);
-            this.soundsLoaded++; // 即使加载失败也计数，避免卡住
-        });
         
         // 图片加载状态
         this.imagesLoaded = 0;
@@ -109,34 +93,100 @@ class Game {
         
         // 添加音频解锁逻辑
         this.unlockAudio();
+        
+        // 预加载音效
+        this.preloadSounds();
+    }
+    
+    // 预加载音效
+    preloadSounds() {
+        console.log("开始预加载音效");
+        
+        // 使用fetch加载音效文件
+        Object.entries(this.soundFiles).forEach(([name, url]) => {
+            fetch(url)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.arrayBuffer();
+                })
+                .then(arrayBuffer => {
+                    console.log(`音效 ${name} 加载成功`);
+                    this.audioBuffers[name] = arrayBuffer;
+                    this.soundsLoaded++;
+                    console.log(`音效加载进度: ${this.soundsLoaded}/${this.totalSounds}`);
+                })
+                .catch(error => {
+                    console.error(`音效 ${name} 加载失败:`, error);
+                    this.soundsLoaded++; // 即使加载失败也计数，避免卡住
+                });
+        });
     }
     
     // 解锁音频的方法
     unlockAudio() {
+        console.log("尝试解锁音频");
+        
         // 创建一个一次性的事件监听器，用于解锁音频
         const unlockAudio = () => {
-            console.log("尝试解锁音频");
-            // 创建一个短暂的音频并播放
-            const audio = new Audio();
-            audio.src = './jump.mp3';
+            console.log("用户交互，尝试解锁音频");
             
-            // 设置音量为0，这样用户不会听到声音
-            audio.volume = 0;
-            
-            // 尝试播放
-            const playPromise = audio.play();
-            
-            if (playPromise !== undefined) {
-                playPromise.then(() => {
-                    console.log("音频解锁成功");
+            // 尝试使用Web Audio API
+            try {
+                // 创建音频上下文
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (AudioContext) {
+                    this.audioContext = new AudioContext();
+                    console.log("Web Audio API 初始化成功");
+                    
+                    // 尝试播放一个静音的音频
+                    const oscillator = this.audioContext.createOscillator();
+                    const gainNode = this.audioContext.createGain();
+                    gainNode.gain.value = 0; // 静音
+                    
+                    oscillator.connect(gainNode);
+                    gainNode.connect(this.audioContext.destination);
+                    
+                    oscillator.start(0);
+                    oscillator.stop(0.1);
+                    
+                    console.log("Web Audio API 测试成功");
                     this.audioEnabled = true;
-                    // 移除事件监听器
-                    document.removeEventListener('click', unlockAudio);
-                    document.removeEventListener('keydown', unlockAudio);
-                }).catch(error => {
-                    console.error("音频解锁失败:", error);
-                });
+                }
+            } catch (e) {
+                console.error("Web Audio API 初始化失败:", e);
             }
+            
+            // 如果Web Audio API不可用，尝试使用Audio元素
+            if (!this.audioEnabled) {
+                try {
+                    // 创建一个短暂的音频并播放
+                    const audio = new Audio();
+                    audio.src = this.soundFiles.jump;
+                    
+                    // 设置音量为0，这样用户不会听到声音
+                    audio.volume = 0;
+                    
+                    // 尝试播放
+                    const playPromise = audio.play();
+                    
+                    if (playPromise !== undefined) {
+                        playPromise.then(() => {
+                            console.log("Audio元素测试成功");
+                            this.audioEnabled = true;
+                        }).catch(error => {
+                            console.error("Audio元素测试失败:", error);
+                        });
+                    }
+                } catch (e) {
+                    console.error("Audio元素测试出错:", e);
+                }
+            }
+            
+            // 移除事件监听器
+            document.removeEventListener('click', unlockAudio);
+            document.removeEventListener('keydown', unlockAudio);
         };
         
         // 添加事件监听器
@@ -152,14 +202,6 @@ class Game {
         this.imagesLoaded++;
         if (this.imagesLoaded === this.totalImages) {
             console.log("所有图片加载完成");
-        }
-    }
-    
-    soundLoaded() {
-        this.soundsLoaded++;
-        console.log(`音效加载进度: ${this.soundsLoaded}/${this.totalSounds}`);
-        if (this.soundsLoaded === this.totalSounds) {
-            console.log("所有音效加载完成");
         }
     }
     
@@ -423,21 +465,13 @@ class Game {
         
         try {
             console.log("尝试播放跳跃音效");
-            // 创建新的音效实例，避免重叠播放问题
-            const jumpSound = new Audio(this.jumpSound.src);
-            jumpSound.volume = 1.0;
             
-            // 播放音效
-            const playPromise = jumpSound.play();
-            
-            if (playPromise !== undefined) {
-                playPromise.then(() => {
-                    console.log("跳跃音效播放成功");
-                }).catch(error => {
-                    console.error("播放跳跃音效失败:", error);
-                    // 如果播放失败，尝试解锁音频
-                    this.unlockAudio();
-                });
+            // 优先使用Web Audio API
+            if (this.audioContext && this.audioBuffers.jump) {
+                this.playSoundWithWebAudio('jump');
+            } else {
+                // 回退到Audio元素
+                this.playSoundWithAudioElement('jump');
             }
         } catch (error) {
             console.error("播放跳跃音效出错:", error);
@@ -453,24 +487,68 @@ class Game {
         
         try {
             console.log("尝试播放碰撞音效");
+            
+            // 优先使用Web Audio API
+            if (this.audioContext && this.audioBuffers.collision) {
+                this.playSoundWithWebAudio('collision');
+            } else {
+                // 回退到Audio元素
+                this.playSoundWithAudioElement('collision');
+            }
+        } catch (error) {
+            console.error("播放碰撞音效出错:", error);
+        }
+    }
+    
+    // 使用Web Audio API播放音效
+    playSoundWithWebAudio(soundName) {
+        if (!this.audioContext || !this.audioBuffers[soundName]) {
+            console.error(`无法使用Web Audio API播放${soundName}音效`);
+            return;
+        }
+        
+        try {
+            // 解码音频数据
+            this.audioContext.decodeAudioData(this.audioBuffers[soundName], (buffer) => {
+                // 创建音频源
+                const source = this.audioContext.createBufferSource();
+                source.buffer = buffer;
+                
+                // 连接到输出
+                source.connect(this.audioContext.destination);
+                
+                // 播放
+                source.start(0);
+                console.log(`${soundName}音效播放成功(Web Audio API)`);
+            }, (error) => {
+                console.error(`解码${soundName}音效失败:`, error);
+            });
+        } catch (error) {
+            console.error(`使用Web Audio API播放${soundName}音效失败:`, error);
+        }
+    }
+    
+    // 使用Audio元素播放音效
+    playSoundWithAudioElement(soundName) {
+        try {
             // 创建新的音效实例，避免重叠播放问题
-            const collisionSound = new Audio(this.collisionSound.src);
-            collisionSound.volume = 1.0;
+            const audio = new Audio(this.soundFiles[soundName]);
+            audio.volume = 1.0;
             
             // 播放音效
-            const playPromise = collisionSound.play();
+            const playPromise = audio.play();
             
             if (playPromise !== undefined) {
                 playPromise.then(() => {
-                    console.log("碰撞音效播放成功");
+                    console.log(`${soundName}音效播放成功(Audio元素)`);
                 }).catch(error => {
-                    console.error("播放碰撞音效失败:", error);
+                    console.error(`播放${soundName}音效失败:`, error);
                     // 如果播放失败，尝试解锁音频
                     this.unlockAudio();
                 });
             }
         } catch (error) {
-            console.error("播放碰撞音效出错:", error);
+            console.error(`使用Audio元素播放${soundName}音效失败:`, error);
         }
     }
 }
